@@ -1,10 +1,13 @@
 import cv2
 import dlib
+import numpy as np
 import sys
+from rembg import remove
+from PIL import Image
 
-def crop_head_and_shoulders(image_path, output_path):
+def crop_and_remove_background(image_path, output_path):
     # Load the image
-    image = cv2.imread(image_path)
+    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if image is None:
         print("Error: Unable to load image.")
         return
@@ -27,7 +30,6 @@ def crop_head_and_shoulders(image_path, output_path):
     center_x, center_y = x + w // 2, y + h // 2
 
     # Adjust the cropping area to include head and shoulders
-    # Increase the height and width of the cropping area
     crop_width = w * 2
     crop_height = h * 2
 
@@ -40,14 +42,33 @@ def crop_head_and_shoulders(image_path, output_path):
     # Crop the image
     cropped_image = image[start_y:end_y, start_x:end_x]
 
-    # Save the cropped image
-    cv2.imwrite(output_path, cropped_image)
-    print(f"Cropped image saved to {output_path}")
+    # Convert the cropped image from BGR to RGB
+    cropped_image_rgb = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB)
+
+    # Convert the image to PIL format for rembg
+    cropped_image_pil = Image.fromarray(cropped_image_rgb)
+
+    # Remove the background using rembg
+    result_pil = remove(cropped_image_pil)
+
+    # Convert the result back to OpenCV format
+    result_rgb = np.array(result_pil)
+    result_bgr = cv2.cvtColor(result_rgb, cv2.COLOR_RGB2BGR)
+
+    # Create a 3-channel image with anthracite grey background
+    anthracite_grey = [41, 41, 41]  # RGB values for anthracite grey
+    result_with_bg = np.full_like(result_bgr, anthracite_grey)
+    mask = result_rgb[:, :, 3] > 0  # Use the alpha channel as mask
+    result_with_bg[mask] = result_bgr[mask][:, :3]
+
+    # Save the resulting image
+    cv2.imwrite(output_path, result_with_bg)
+    print(f"Cropped image with anthracite grey background saved to {output_path}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python crop_head_and_shoulders.py <input_image_path> <output_image_path>")
+        print("Usage: python crop_and_remove_background.py <input_image_path> <output_image_path>")
     else:
         input_image_path = sys.argv[1]
         output_image_path = sys.argv[2]
-        crop_head_and_shoulders(input_image_path, output_image_path)
+        crop_and_remove_background(input_image_path, output_image_path)
