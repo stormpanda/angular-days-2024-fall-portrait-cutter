@@ -59,18 +59,26 @@ def crop_and_remove_background(image_path, output_path):
     rgb_channels = result_rgba[:, :, :3]
 
     # Create a 3-channel image with anthracite grey background
-    anthracite_grey = [41, 41, 41]  # RGB values for anthracite grey
+    anthracite_grey = (41, 41, 41)  # RGB values for anthracite grey
     result_with_bg = np.full_like(rgb_channels, anthracite_grey)
 
     # Blend the foreground with the background using the alpha channel
     alpha_factor = alpha_channel[:, :, np.newaxis] / 255.0
     result_with_bg = (rgb_channels * alpha_factor + result_with_bg * (1 - alpha_factor)).astype(np.uint8)
 
-    # Convert the result back to BGR for saving
-    result_with_bg_bgr = cv2.cvtColor(result_with_bg, cv2.COLOR_RGB2BGR)
+    # Resize the image to fit within a 300x300 pixel box while maintaining aspect ratio
+    result_with_bg_pil = Image.fromarray(result_with_bg)
+    result_with_bg_pil.thumbnail((300, 300), Image.LANCZOS)
+
+    # Create a new 300x300 pixel image with anthracite grey background
+    final_image = Image.new("RGB", (300, 300), anthracite_grey)
+    final_image.paste(result_with_bg_pil, ((300 - result_with_bg_pil.width) // 2, (300 - result_with_bg_pil.height) // 2))
+
+    # Convert the final image back to OpenCV format
+    final_image_cv = cv2.cvtColor(np.array(final_image), cv2.COLOR_RGB2BGR)
 
     # Save the resulting image
-    cv2.imwrite(output_path, result_with_bg_bgr)
+    cv2.imwrite(output_path, final_image_cv)
     print(f"Cropped image with anthracite grey background saved to {output_path}")
 
 if __name__ == "__main__":
